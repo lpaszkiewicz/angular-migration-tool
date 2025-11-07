@@ -1,0 +1,75 @@
+{
+  "name": "angular-advanced-migration",
+  "version": "2.0.0",
+  "description": "Advanced Angular 17-20 migration tool with automated dependency updates, intelligent codemods, and multi-version support",
+  "main": "dist/cli.js",
+  "bin": {
+    "ang-fix": "dist/cli.js"
+  },
+  "engines": {
+    "node": ">=18.19.1"
+  },
+  "keywords": [
+    "angular",
+    "migration",
+    "upgrade",
+    "codemod",
+    "angular17",
+    "angular18", 
+    "angular19",
+    "angular20",
+    "typescript",
+    "cli",
+    "automation"
+  ],
+  "author": {
+    "name": "Your Name",
+    "email": "your.email@example.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lpaszkiewicz/angular-migration-tool.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lpaszkiewicz/angular-migration-tool/issues"
+  },
+  "homepage": "https://github.com/lpaszkiewicz/angular-migration-tool#readme",
+  "scripts": {
+    "build": "tsc -p .",
+    "prepublishOnly": "npm run build",
+    "start": "node dist/cli.js",
+    "dev": "ts-node src/cli.ts",
+    "lint": "eslint . --ext .ts",
+    "test": "echo \"Tests will be added\" && exit 0",
+    "smoke": "ts-node src/cli.ts --path \"test/samples/**/*.ts\" --dry-run",
+    "interactive": "ts-node src/cli.ts --interactive",
+    "version": "npm run build && git add -A",
+    "postversion": "git push && git push --tags"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "MIGRATION_README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^11.0.0",
+    "glob": "^10.3.0",
+    "ts-morph": "^17.0.1",
+    "ink": "^4.4.1",
+    "ink-spinner": "^5.0.0",
+    "ink-select-input": "^5.0.0",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.5.0",
+    "@types/react": "^18.2.0",
+    "@typescript-eslint/eslint-plugin": "^6.9.0",
+    "@typescript-eslint/parser": "^6.9.0",
+    "eslint": "^8.46.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.0"
+  }
+}
