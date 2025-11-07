@@ -1,7 +1,7 @@
 {
   "name": "ng-migration",
-  "version": "1.0.0",
-  "description": "Advanced Angular 17-20 migration tool with automated dependency updates, intelligent codemods, and multi-version support",
+  "version": "1.0.2",
+  "description": "Angular 17-20 migration tool with automated dependency updates, intelligent codemods, and multi-version support",
   "main": "dist/cli.js",
   "bin": {
     "ang-fix": "dist/cli.js"
