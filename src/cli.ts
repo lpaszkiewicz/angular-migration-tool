@@ -29,6 +29,8 @@ program
   .option('--skip-codemods', 'Skip code transformations', false)
   .option('--continue-on-error', 'Continue migration even if a step fails', false)
   .option('--test-each-step', 'Run tests after each migration step', false)
+  .option('--no-peer-resolution', 'Skip peer dependency conflict resolution', false)
+  .option('--allow-peer-overrides', 'Allow package overrides/resolutions for peer conflicts', false)
   .option('--exclude-codemods <codemods...>', 'Exclude specific codemods')
   .option('--only-codemods <codemods...>', 'Only run specified codemods')
   .action(async (target, options) => {
@@ -50,6 +52,8 @@ program
         skipCodeMods: options.skipCodemods,
         continueOnError: options.continueOnError,
         runTestsAfterEachStep: options.testEachStep,
+        resolvePeerConflicts: !options.noPeerResolution,
+        allowPeerConflictOverrides: options.allowPeerOverrides,
         excludeCodemods: options.excludeCodemods,
         customCodemods: options.onlyCodemods
       });
@@ -84,6 +88,77 @@ program
   });
 
 program
+  .command('check-conflicts')
+  .description('Analyze peer dependency conflicts for a target version')
+  .argument('<target>', 'Target Angular version (17, 18, 19, or 20)')
+  .option('--resolve', 'Attempt to resolve conflicts automatically', false)
+  .action(async (target, options) => {
+    const targetVersion = parseInt(target, 10);
+    
+    if (![17, 18, 19, 20].includes(targetVersion)) {
+      console.error('❌ Invalid target version. Supported versions: 17, 18, 19, 20');
+      process.exit(1);
+    }
+
+    const { MigrationDetector } = await import('./migration/detector');
+    const { DependencyMigrator } = await import('./migration/dependencies');
+    const { getMigrationChain } = await import('./migration/versions');
+
+    try {
+      const detector = new MigrationDetector();
+      const dependencyMigrator = new DependencyMigrator();
+      const project = await detector.analyzeProject();
+      
+      if (!project.currentAngularVersion) {
+        console.error('❌ Could not detect current Angular version');
+        process.exit(1);
+      }
+
+      const migrationChain = getMigrationChain(project.currentAngularVersion, targetVersion);
+      
+      console.log(`🔍 Analyzing peer dependency conflicts for migration to Angular ${targetVersion}...`);
+      
+      for (let i = 0; i < migrationChain.length; i++) {
+        const migration = migrationChain[i];
+        console.log(`\n📦 Step ${i + 1}: Angular ${migration.from} → ${migration.to}`);
+        
+        const conflicts = await dependencyMigrator.analyzePeerDependencyConflicts(migration);
+        
+        if (conflicts.conflicts.length === 0) {
+          console.log('  ✅ No peer dependency conflicts detected');
+        } else {
+          console.log(`  ⚠️  Found ${conflicts.conflicts.length} conflict(s):`);
+          
+          for (const conflict of conflicts.conflicts) {
+            console.log(`    • ${conflict.packageName}: ${conflict.reasoning}`);
+            console.log(`      Strategy: ${conflict.resolutionStrategy}`);
+            if (conflict.recommendedVersion) {
+              console.log(`      Recommended: ${conflict.recommendedVersion}`);
+            }
+          }
+          
+          if (options.resolve && conflicts.canAutoResolve) {
+            console.log('\n  🔧 Attempting to resolve conflicts...');
+            const result = await dependencyMigrator.resolvePeerDependencyConflicts(conflicts, true);
+            
+            if (result.success) {
+              console.log('  ✅ Conflicts can be automatically resolved');
+              console.log(`  Updated packages: ${result.updated.join(', ')}`);
+            } else {
+              console.log('  ❌ Auto-resolution failed');
+              result.errors.forEach(error => console.log(`    Error: ${error}`));
+            }
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Conflict analysis failed:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
   .command('versions')
   .description('List supported Angular versions and migration paths')
   .action(() => {
@@ -100,6 +175,7 @@ program
     console.log('  ang-fix migrate 18           # Migrate to Angular 18');
     console.log('  ang-fix migrate 20 --dry-run # Preview migration to Angular 20');
     console.log('  ang-fix analyze 19           # Analyze migration requirements to Angular 19');
+    console.log('  ang-fix check-conflicts 20   # Check peer dependency conflicts for Angular 20');
   });
 
 program.parse(process.argv);

@@ -1,5 +1,5 @@
 {
-  "name": "angular-advanced-migration",
+  "name": "ng-migration",
   "version": "1.0.0",
   "description": "Advanced Angular 17-20 migration tool with automated dependency updates, intelligent codemods, and multi-version support",
   "main": "dist/cli.js",
@@ -61,11 +61,13 @@
     "ink": "^4.4.1",
     "ink-spinner": "^5.0.0",
     "ink-select-input": "^5.0.0",
-    "react": "^18.2.0"
+    "react": "^18.2.0",
+    "semver": "^7.5.4"
   },
   "devDependencies": {
     "@types/node": "^20.5.0",
     "@types/react": "^18.2.0",
+    "@types/semver": "^7.5.0",
     "@typescript-eslint/eslint-plugin": "^6.9.0",
     "@typescript-eslint/parser": "^6.9.0",
     "eslint": "^8.46.0",

@@ -21,7 +21,7 @@ Your `package.json` is already configured for npm publishing:
 
 ```json
 {
-  "name": "angular-advanced-migration",
+  "name": "ng-migration",
   "version": "2.0.0",
   "description": "Advanced Angular 17-20 migration tool...",
   "main": "dist/cli.js",
@@ -49,7 +49,7 @@ node dist/cli.js --help
 
 # Test installation locally (optional)
 npm pack
-npm install -g angular-advanced-migration-2.0.0.tgz
+npm install -g ng-migration-2.0.0.tgz
 ```
 
 ## Step 3: Login to NPM
@@ -66,7 +66,7 @@ npm whoami
 
 ```bash
 # Check if the package name is available
-npm view angular-advanced-migration
+npm view ng-migration
 
 # If the package exists, you'll need to:
 # 1. Choose a different name, OR
@@ -101,10 +101,10 @@ npm publish
 
 ```bash
 # Check your package on npm
-npm view angular-advanced-migration
+npm view ng-migration
 
 # Test installation from npm
-npm install -g angular-advanced-migration
+npm install -g ng-migration
 
 # Test the global command
 ang-fix versions
@@ -112,7 +112,7 @@ ang-fix versions
 
 ## Alternative Package Names (if needed)
 
-If `angular-advanced-migration` is taken, consider these alternatives:
+If `ng-migration` is taken, consider these alternatives:
 
 - `angular-migration-pro`
 - `ng-migration-tool`
@@ -124,16 +124,16 @@ If `angular-advanced-migration` is taken, consider these alternatives:
 
 ```bash
 # View package info
-npm view angular-advanced-migration
+npm view ng-migration
 
 # View all versions
-npm view angular-advanced-migration versions --json
+npm view ng-migration versions --json
 
 # Unpublish (only within 72 hours)
-npm unpublish angular-advanced-migration@2.0.0
+npm unpublish ng-migration@2.0.0
 
 # Deprecate a version
-npm deprecate angular-advanced-migration@2.0.0 "Use version 2.1.0 instead"
+npm deprecate ng-migration@2.0.0 "Use version 2.1.0 instead"
 ```
 
 ## Best Practices
@@ -211,7 +211,7 @@ Add to your `package.json`:
 npm whoami
 
 # Check package permissions
-npm owner ls angular-advanced-migration
+npm owner ls ng-migration
 ```
 
 **Package name conflicts**
@@ -252,8 +252,8 @@ npm login
 npm publish
 
 # 4. Verify
-npm view angular-advanced-migration
-npm install -g angular-advanced-migration
+npm view ng-migration
+npm install -g ng-migration
 ang-fix --help
 
 # 5. Create GitHub release
@@ -265,8 +265,8 @@ git push origin v2.0.0
 
 Your package is now available worldwide:
 
-- **NPM**: https://www.npmjs.com/package/angular-advanced-migration
-- **Install**: `npm install -g angular-advanced-migration`
+- **NPM**: https://www.npmjs.com/package/ng-migration
+- **Install**: `npm install -g ng-migration`
 - **Usage**: `ang-fix migrate 18`
 
 Users can now install and use your Angular migration tool from anywhere in the world!

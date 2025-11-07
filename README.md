@@ -1,6 +1,6 @@
 # Angular Advanced Migration Tool
 
-[![npm version](https://badge.fury.io/js/angular-advanced-migration.svg)](https://www.npmjs.com/package/angular-advanced-migration)
+[![npm version](https://badge.fury.io/js/ng-migration.svg)](https://www.npmjs.com/package/ng-migration)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A comprehensive, automated migration tool for upgrading Angular applications from version 17 to 20, with support for multi-step migrations, dependency management, and intelligent code transformations.
@@ -11,7 +11,7 @@ A comprehensive, automated migration tool for upgrading Angular applications fro
 
 ### Installation
 ```bash
-npm install -g angular-advanced-migration
+npm install -g ng-migration
 ```
 
 ### Basic Usage

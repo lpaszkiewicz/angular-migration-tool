@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { MigrationDetector, MigrationAnalysis, ProjectAnalysis, MigrationIssue } from './detector';
-import { DependencyMigrator, DependencyUpdateResult } from './dependencies';
+import { DependencyMigrator, DependencyUpdateResult, ConflictResolution } from './dependencies';
 import { getMigrationChain, MigrationPath } from './versions';
 import { getCodemodsForMigrationPath } from './codemods';
 import { scanForIssues, applyFixes } from '../detector';
@@ -49,6 +49,8 @@ export interface MigrationOptions {
   runTestsAfterEachStep?: boolean;
   customCodemods?: string[];
   excludeCodemods?: string[];
+  resolvePeerConflicts?: boolean;
+  allowPeerConflictOverrides?: boolean;
 }
 
 export class MigrationOrchestrator {
@@ -182,6 +184,37 @@ export class MigrationOrchestrator {
       // Update dependencies
       if (!options.skipDependencies) {
         console.log('  📦 Updating dependencies...');
+        
+        // Check for peer dependency conflicts first
+        let conflictResolution: ConflictResolution | null = null;
+        if (options.resolvePeerConflicts !== false) {
+          console.log('  🔍 Analyzing peer dependency conflicts...');
+          conflictResolution = await this.dependencyMigrator.analyzePeerDependencyConflicts(migration);
+          
+          if (conflictResolution.conflicts.length > 0) {
+            console.log(`  ⚠️  Found ${conflictResolution.conflicts.length} peer dependency conflict(s)`);
+            
+            if (conflictResolution.canAutoResolve) {
+              console.log('  🔧 Resolving peer dependency conflicts...');
+              const conflictResult = await this.dependencyMigrator.resolvePeerDependencyConflicts(
+                conflictResolution, 
+                options.dryRun || false
+              );
+              
+              if (!conflictResult.success) {
+                step.success = false;
+                step.error = `Peer dependency resolution failed: ${conflictResult.errors.join(', ')}`;
+                return step;
+              }
+            } else if (!options.allowPeerConflictOverrides) {
+              console.log('  ❌ Cannot auto-resolve peer conflicts and overrides not allowed');
+              step.success = false;
+              step.error = `Peer dependency conflicts require manual resolution: ${conflictResolution.resolutions.manualSteps?.join(', ')}`;
+              return step;
+            }
+          }
+        }
+        
         step.dependencies = await this.dependencyMigrator.updateDependencies(migration, {
           dryRun: options.dryRun,
           backup: false // We already created a project backup
@@ -190,6 +223,11 @@ export class MigrationOrchestrator {
         if (!step.dependencies.success) {
           step.success = false;
           step.error = `Dependency update failed: ${step.dependencies.errors.join(', ')}`;
+        }
+        
+        // Report conflict resolution results
+        if (conflictResolution && conflictResolution.conflicts.length > 0) {
+          step.issues.push(...this.convertConflictsToIssues(conflictResolution, stepNumber));
         }
       }
 
@@ -407,5 +445,26 @@ export class MigrationOrchestrator {
         console.log('You can restore from the backup if needed.');
       }
     }
+  }
+
+  /**
+   * Convert peer dependency conflicts to migration issues
+   */
+  private convertConflictsToIssues(resolution: ConflictResolution, stepNumber: number): MigrationIssue[] {
+    const issues: MigrationIssue[] = [];
+    
+    for (const conflict of resolution.conflicts) {
+      issues.push({
+        id: `peer-conflict-${conflict.packageName}`,
+        severity: conflict.resolutionStrategy === 'manual' ? 'error' : 'warning',
+        category: 'dependency',
+        title: `Peer dependency conflict: ${conflict.packageName}`,
+        description: `${conflict.reasoning}. Required by: ${conflict.requiredBy.join(', ')}`,
+        autoFixable: conflict.resolutionStrategy !== 'manual',
+        migrationStep: stepNumber
+      });
+    }
+    
+    return issues;
   }
 }
