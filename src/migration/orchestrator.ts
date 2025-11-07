@@ -51,6 +51,8 @@ export interface MigrationOptions {
   excludeCodemods?: string[];
   resolvePeerConflicts?: boolean;
   allowPeerConflictOverrides?: boolean;
+  interactive?: boolean;
+  autoApplyOptionalSteps?: boolean;
 }
 
 export class MigrationOrchestrator {
@@ -138,7 +140,7 @@ export class MigrationOrchestrator {
       backupPath
     };
 
-    this.printMigrationSummary(result);
+    await this.printMigrationSummary(result, options);
     return result;
   }
 
@@ -409,7 +411,7 @@ export class MigrationOrchestrator {
   /**
    * Print migration summary
    */
-  private printMigrationSummary(result: MigrationResult): void {
+  private async printMigrationSummary(result: MigrationResult, options: MigrationOptions = {}): Promise<void> {
     const { success, summary, totalDuration, steps } = result;
     
     console.log('\n🎯 Migration Summary:');
@@ -422,6 +424,11 @@ export class MigrationOrchestrator {
     if (summary.manualStepsRequired.length > 0) {
       console.log('\n⚠️  Manual steps required:');
       summary.manualStepsRequired.forEach(step => console.log(`  • ${step}`));
+      
+      // Handle optional interactive steps
+      if (options.interactive && !options.dryRun && success) {
+        await this.handleOptionalSteps(result.toVersion, summary.manualStepsRequired);
+      }
     }
     
     const failedSteps = steps.filter(s => !s.success);
@@ -444,6 +451,127 @@ export class MigrationOrchestrator {
       if (result.backupPath) {
         console.log('You can restore from the backup if needed.');
       }
+    }
+  }
+
+  /**
+   * Handle optional post-migration steps interactively
+   */
+  private async handleOptionalSteps(targetVersion: number, manualSteps: string[]): Promise<void> {
+    console.log('\n🤔 Would you like to apply optional enhancements?');
+    
+    const readline = require('readline');
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    const question = (prompt: string): Promise<string> => {
+      return new Promise((resolve) => {
+        rl.question(prompt, (answer: string) => {
+          resolve(answer);
+        });
+      });
+    };
+
+    try {
+      // Handle Material Design 3 migration for Angular 18+
+      if (targetVersion >= 18 && manualSteps.some(step => step.includes('Material Design 3'))) {
+        const answer = await question('\n  Update Angular Material to Material Design 3 (M3)? (y/N): ');
+        if (answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes') {
+          await this.applyMaterialM3Update();
+        }
+      }
+
+      // Handle zoneless change detection for Angular 18+
+      if (targetVersion >= 18 && manualSteps.some(step => step.includes('zoneless'))) {
+        const answer = await question('\n  Enable experimental zoneless change detection? (y/N): ');
+        if (answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes') {
+          await this.enableZonelessChangeDetection();
+        }
+      }
+    } finally {
+      rl.close();
+    }
+  }
+
+  /**
+   * Apply Material Design 3 updates
+   */
+  private async applyMaterialM3Update(): Promise<void> {
+    console.log('\n  🎨 Applying Material Design 3 updates...');
+    try {
+      // Update to M3 theme
+      const stylesPath = path.join(this.projectRoot, 'src', 'styles.scss');
+      if (fs.existsSync(stylesPath)) {
+        let styles = fs.readFileSync(stylesPath, 'utf8');
+        
+        // Replace old Material theme with M3 theme
+        if (styles.includes('@angular/material/prebuilt-themes/')) {
+          styles = styles.replace(
+            /@import ['"]~?@angular\/material\/prebuilt-themes\/[^'"]+['"];?/g,
+            "@import '@angular/material/prebuilt-themes/azure-blue.css';"
+          );
+          fs.writeFileSync(stylesPath, styles);
+          console.log('  ✅ Updated Material theme to M3');
+        } else if (styles.includes('@use') && styles.includes('@angular/material')) {
+          // Already using M3 with @use syntax
+          console.log('  ℹ️  Already using modern Material theming');
+        } else {
+          console.log('  ℹ️  No Material theme import found, skipping');
+        }
+      } else {
+        const stylesCssPath = path.join(this.projectRoot, 'src', 'styles.css');
+        if (fs.existsSync(stylesCssPath)) {
+          console.log('  ℹ️  Found styles.css - M3 themes work best with SCSS');
+          console.log('  💡 Consider renaming to styles.scss for better theming support');
+        }
+      }
+    } catch (error) {
+      console.log(`  ⚠️  Failed to apply M3 updates: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Enable zoneless change detection
+   */
+  private async enableZonelessChangeDetection(): Promise<void> {
+    console.log('\n  ⚡ Enabling zoneless change detection...');
+    try {
+      const configPath = path.join(this.projectRoot, 'src', 'app', 'app.config.ts');
+      if (fs.existsSync(configPath)) {
+        let config = fs.readFileSync(configPath, 'utf8');
+        
+        // Add provideExperimentalZonelessChangeDetection if not present
+        if (!config.includes('provideExperimentalZonelessChangeDetection')) {
+          // Check if it has provideZoneChangeDetection
+          if (config.includes('provideZoneChangeDetection')) {
+            config = config.replace(
+              /provideZoneChangeDetection\([^)]*\)/,
+              'provideExperimentalZonelessChangeDetection()'
+            );
+            
+            // Update import
+            if (config.includes("from '@angular/core'")) {
+              config = config.replace(
+                /(import\s*{[^}]*)(provideZoneChangeDetection)([^}]*}\s*from\s*['"]@angular\/core['"])/,
+                '$1provideExperimentalZonelessChangeDetection$3'
+              );
+            }
+            
+            fs.writeFileSync(configPath, config);
+            console.log('  ✅ Enabled zoneless change detection in app.config.ts');
+          } else {
+            console.log('  ℹ️  No zone configuration found, skipping');
+          }
+        } else {
+          console.log('  ℹ️  Zoneless change detection already enabled');
+        }
+      } else {
+        console.log('  ⚠️  app.config.ts not found, cannot enable zoneless change detection');
+      }
+    } catch (error) {
+      console.log(`  ⚠️  Failed to enable zoneless: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

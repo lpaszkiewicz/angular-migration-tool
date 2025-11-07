@@ -31,6 +31,7 @@ program
   .option('--test-each-step', 'Run tests after each migration step', false)
   .option('--no-peer-resolution', 'Skip peer dependency conflict resolution', false)
   .option('--allow-peer-overrides', 'Allow package overrides/resolutions for peer conflicts', false)
+  .option('--interactive', 'Prompt for optional enhancements (M3, zoneless, etc.)', false)
   .option('--exclude-codemods <codemods...>', 'Exclude specific codemods')
   .option('--only-codemods <codemods...>', 'Only run specified codemods')
   .action(async (target, options) => {
@@ -54,6 +55,7 @@ program
         runTestsAfterEachStep: options.testEachStep,
         resolvePeerConflicts: !options.noPeerResolution,
         allowPeerConflictOverrides: options.allowPeerOverrides,
+        interactive: options.interactive,
         excludeCodemods: options.excludeCodemods,
         customCodemods: options.onlyCodemods
       });
@@ -172,10 +174,11 @@ program
     console.log('Multi-step migrations are supported (e.g., 17 → 20 will go through 17→18→19→20)');
     console.log('');
     console.log('Examples:');
-    console.log('  ang-fix migrate 18           # Migrate to Angular 18');
-    console.log('  ang-fix migrate 20 --dry-run # Preview migration to Angular 20');
-    console.log('  ang-fix analyze 19           # Analyze migration requirements to Angular 19');
-    console.log('  ang-fix check-conflicts 20   # Check peer dependency conflicts for Angular 20');
+    console.log('  ang-fix migrate 18              # Migrate to Angular 18');
+    console.log('  ang-fix migrate 18 --interactive # Migrate with prompts for M3 & zoneless');
+    console.log('  ang-fix migrate 20 --dry-run    # Preview migration to Angular 20');
+    console.log('  ang-fix analyze 19              # Analyze migration requirements to Angular 19');
+    console.log('  ang-fix check-conflicts 20      # Check peer dependency conflicts for Angular 20');
   });
 
 program.parse(process.argv);

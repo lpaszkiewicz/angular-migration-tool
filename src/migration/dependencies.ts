@@ -84,9 +84,9 @@ export class DependencyMigrator {
         await this.runNgUpdateCommands(migration, result);
       }
 
-      // Install/update dependencies
+      // Install/update dependencies with clean install if needed
       if (!dryRun) {
-        await this.installDependencies(result);
+        await this.installDependenciesWithRetry(result);
       }
 
       // Verify installation
@@ -337,9 +337,12 @@ export class DependencyMigrator {
         
         const conflictingRequirements = await this.findConflictingRequirements(peerName, peerRange, currentDeps);
         
-        if (conflictingRequirements.length > 0 || 
-            (currentVersion && !semver.satisfies(semver.coerce(currentVersion)?.version || '0.0.0', peerRange))) {
-          
+        // Only report conflicts if there's a real incompatibility
+        const hasRealConflict = currentVersion && 
+          !this.versionSatisfiesRange(currentVersion, peerRange) &&
+          conflictingRequirements.some(req => !req.satisfied);
+        
+        if (hasRealConflict || (conflictingRequirements.length > 0 && conflictingRequirements.some(req => !req.satisfied))) {
           conflicts.push({
             packageName: peerName,
             requiredBy: [dependency.name],
@@ -352,8 +355,11 @@ export class DependencyMigrator {
         }
       }
     } catch (error) {
-      // Non-fatal - package might not exist in registry
-      console.warn(`Could not check peer dependencies for ${dependency.name}: ${error}`);
+      // Non-fatal - package might not exist in registry or network issues
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (!errorMsg.includes('ENOBUFS')) {
+        console.warn(`Could not check peer dependencies for ${dependency.name}: ${errorMsg}`);
+      }
     }
 
     return conflicts;
@@ -501,7 +507,8 @@ export class DependencyMigrator {
     try {
       const output = execSync(`npm view ${packageName} versions --json`, { 
         encoding: 'utf8',
-        stdio: 'pipe' 
+        stdio: 'pipe',
+        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
       });
       const versions = JSON.parse(output);
       return Array.isArray(versions) ? versions : [versions];
@@ -517,7 +524,8 @@ export class DependencyMigrator {
     try {
       const output = execSync(`npm view ${packageName}@${version} --json`, { 
         encoding: 'utf8',
-        stdio: 'pipe' 
+        stdio: 'pipe',
+        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
       });
       return JSON.parse(output);
     } catch (error) {
@@ -583,6 +591,19 @@ export class DependencyMigrator {
   }
 
   /**
+   * Check if a version satisfies a semver range
+   */
+  private versionSatisfiesRange(version: string, range: string): boolean {
+    try {
+      const coerced = semver.coerce(version);
+      if (!coerced) return false;
+      return semver.satisfies(coerced.version, range);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Install dependencies with conflict resolution
    */
   private async installDependenciesWithConflictResolution(): Promise<void> {
@@ -605,7 +626,8 @@ export class DependencyMigrator {
       execSync(installCommand, {
         cwd: this.projectRoot,
         stdio: 'pipe',
-        encoding: 'utf8'
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
       });
     } catch (error) {
       throw new Error(`Installation failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -683,9 +705,84 @@ export class DependencyMigrator {
       packageJson.peerDependencies[dep.name] = dep.version;
     }
 
+    // Auto-update all Angular ecosystem packages to match target version
+    this.updateAngularEcosystemPackages(packageJson, migration.to);
+
     if (!dryRun) {
       fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
     }
+  }
+
+  /**
+   * Update all Angular ecosystem packages to match the target version
+   * This includes Material adapters, CDK, CLI tools, etc.
+   */
+  private updateAngularEcosystemPackages(packageJson: any, targetVersion: number): void {
+    const angularEcosystemPackages = [
+      '@angular/animations',
+      '@angular/common',
+      '@angular/compiler',
+      '@angular/core',
+      '@angular/forms',
+      '@angular/platform-browser',
+      '@angular/platform-browser-dynamic',
+      '@angular/router',
+      '@angular/service-worker',
+      '@angular/cdk',
+      '@angular/material',
+      '@angular/material-luxon-adapter',
+      '@angular/material-moment-adapter',
+      '@angular/material-date-fns-adapter',
+      '@angular/elements',
+      '@angular/pwa',
+      '@angular/localize',
+      '@angular/platform-server',
+      '@angular-devkit/build-angular',
+      '@angular/cli',
+      '@angular/compiler-cli',
+      'ng-packagr'
+    ];
+
+    const targetVersionRange = `^${targetVersion}.2.0`;
+
+    // Update in dependencies
+    if (packageJson.dependencies) {
+      for (const pkg of angularEcosystemPackages) {
+        if (packageJson.dependencies[pkg]) {
+          const currentVersion = packageJson.dependencies[pkg];
+          // Only update if it's an Angular version mismatch
+          if (this.isAngularPackageOutdated(currentVersion, targetVersion)) {
+            console.log(`  📦 Auto-updating ${pkg}: ${currentVersion} → ${targetVersionRange}`);
+            packageJson.dependencies[pkg] = targetVersionRange;
+          }
+        }
+      }
+    }
+
+    // Update in devDependencies
+    if (packageJson.devDependencies) {
+      for (const pkg of angularEcosystemPackages) {
+        if (packageJson.devDependencies[pkg]) {
+          const currentVersion = packageJson.devDependencies[pkg];
+          if (this.isAngularPackageOutdated(currentVersion, targetVersion)) {
+            console.log(`  📦 Auto-updating ${pkg}: ${currentVersion} → ${targetVersionRange}`);
+            packageJson.devDependencies[pkg] = targetVersionRange;
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Check if an Angular package version is outdated compared to target
+   */
+  private isAngularPackageOutdated(currentVersion: string, targetVersion: number): boolean {
+    // Extract major version from version string (e.g., "^17.3.10" -> 17)
+    const match = currentVersion.match(/(\d+)\./);
+    if (!match) return false;
+    
+    const currentMajor = parseInt(match[1], 10);
+    return currentMajor < targetVersion;
   }
 
   private async runNgUpdateCommands(migration: MigrationPath, result: DependencyUpdateResult): Promise<void> {
@@ -695,7 +792,8 @@ export class DependencyMigrator {
         execSync(command, {
           cwd: this.projectRoot,
           stdio: 'pipe',
-          encoding: 'utf8'
+          encoding: 'utf8',
+          maxBuffer: 10 * 1024 * 1024 // 10MB buffer
         });
         result.updated.push(command);
       } catch (error) {
@@ -713,13 +811,74 @@ export class DependencyMigrator {
       execSync(installCommand, {
         cwd: this.projectRoot,
         stdio: 'pipe',
-        encoding: 'utf8'
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
       });
       result.updated.push('dependency installation');
     } catch (error) {
       result.failed.push('dependency installation');
       result.errors.push(`Failed to install dependencies: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
+    }
+  }
+
+  /**
+   * Install dependencies with retry strategy for peer dependency conflicts
+   */
+  private async installDependenciesWithRetry(result: DependencyUpdateResult): Promise<void> {
+    try {
+      await this.installDependencies(result);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Check if it's a peer dependency conflict (ERESOLVE)
+      if (errorMessage.includes('ERESOLVE') || errorMessage.includes('peer dep')) {
+        console.log('  ⚠️  Peer dependency conflict detected, attempting clean install...');
+        
+        try {
+          // Remove node_modules and lock file for clean install
+          await this.cleanNodeModules();
+          
+          // Retry installation
+          console.log('  🔄 Retrying installation after cleanup...');
+          await this.installDependencies(result);
+          
+          console.log('  ✅ Clean install successful');
+        } catch (retryError) {
+          result.errors.push('Clean install also failed. You may need to resolve peer dependencies manually.');
+          throw retryError;
+        }
+      } else {
+        // Not a peer dep issue, just rethrow
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Clean node_modules and lock files for fresh install
+   */
+  private async cleanNodeModules(): Promise<void> {
+    const nodeModulesPath = path.join(this.projectRoot, 'node_modules');
+    const lockFiles = [
+      'package-lock.json',
+      'yarn.lock', 
+      'pnpm-lock.yaml'
+    ];
+
+    // Remove node_modules
+    if (fs.existsSync(nodeModulesPath)) {
+      console.log('    Removing node_modules...');
+      fs.rmSync(nodeModulesPath, { recursive: true, force: true });
+    }
+
+    // Remove lock files
+    for (const lockFile of lockFiles) {
+      const lockPath = path.join(this.projectRoot, lockFile);
+      if (fs.existsSync(lockPath)) {
+        console.log(`    Removing ${lockFile}...`);
+        fs.unlinkSync(lockPath);
+      }
     }
   }
 
