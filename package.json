@@ -1,6 +1,6 @@
 {
   "name": "angular-advanced-migration",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "description": "Advanced Angular 17-20 migration tool with automated dependency updates, intelligent codemods, and multi-version support",
   "main": "dist/cli.js",
   "bin": {
@@ -15,7 +15,7 @@
     "upgrade",
     "codemod",
     "angular17",
-    "angular18", 
+    "angular18",
     "angular19",
     "angular20",
     "typescript",
@@ -24,12 +24,12 @@
   ],
   "author": {
     "name": "Lisa Kretz",
-    "email": "lpaszkiewicz1@gmail.com"
+    "email": "lkretzschmar3@gmail.com"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lpaszkiewicz/angular-migration-tool.git"
+    "url": "git+https://github.com/lpaszkiewicz/angular-migration-tool.git"
   },
   "bugs": {
     "url": "https://github.com/lpaszkiewicz/angular-migration-tool/issues"

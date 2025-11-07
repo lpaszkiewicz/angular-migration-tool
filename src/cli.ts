@@ -3,12 +3,13 @@ import { Command } from 'commander';
 import { runFixes } from './fixer';
 import { scanForIssues, applyFixes } from './detector';
 import { MigrationOrchestrator } from './migration/orchestrator';
+import * as packageJson from '../package.json';
 
 const program = new Command();
 
 program
   .name('ang-fix')
-  .version('2.0.0')
+  .version(packageJson.version)
   .description('Advanced Angular 17-20 migration tool with interactive TUI and automated migrations')
   .option('-i, --interactive', 'Start interactive mode with TUI', false)
   .option('-d, --dry-run', 'Show changes without writing files (legacy mode)', true)
